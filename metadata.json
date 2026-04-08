@@ -1,0 +1,5 @@
+{
+  "name": "Rehan Voice AI",
+  "description": "A real-time voice-to-voice AI assistant with a friendly and engaging personality, supporting multiple modes like Story, Chat, and Gaming.",
+  "requestFramePermissions": ["microphone"]
+}
