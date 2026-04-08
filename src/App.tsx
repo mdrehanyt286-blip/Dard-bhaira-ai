@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { GoogleGenAI, Modality } from "@google/genai";
-import { Mic, MicOff, MessageSquare, BookOpen, Gamepad2, Volume2, VolumeX, Sparkles, Power } from 'lucide-react';
+import { Mic, MicOff, MessageSquare, BookOpen, Gamepad2, Volume2, VolumeX, Sparkles, Power, Settings, X, Save } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 const MODEL_NAME = "gemini-3.1-flash-live-preview";
@@ -14,6 +14,8 @@ export default function App() {
   const [aiTranscript, setAiTranscript] = useState("");
   const [volume, setVolume] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [userApiKey, setUserApiKey] = useState<string>(localStorage.getItem('gemini_api_key') || "");
+  const [showSettings, setShowSettings] = useState(false);
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -101,7 +103,12 @@ export default function App() {
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
       audioContextRef.current = audioContext;
 
-      const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+      const apiKey = userApiKey || process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        throw new Error("API Key not found. Please set it in Settings.");
+      }
+
+      const ai = new GoogleGenAI({ apiKey });
       
       const sessionPromise = ai.live.connect({
         model: MODEL_NAME,
@@ -222,8 +229,74 @@ export default function App() {
     restart();
   }, [mode]);
 
+  const saveApiKey = (key: string) => {
+    setUserApiKey(key);
+    localStorage.setItem('gemini_api_key', key);
+    setShowSettings(false);
+  };
+
   return (
     <div className="min-h-screen bg-[#050505] text-white font-sans selection:bg-orange-500/30">
+      {/* Settings Modal */}
+      <AnimatePresence>
+        {showSettings && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+          >
+            <motion.div 
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="w-full max-w-md bg-[#111] border border-white/10 rounded-3xl p-6 shadow-2xl"
+            >
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-bold flex items-center gap-2">
+                  <Settings className="w-5 h-5 text-orange-500" />
+                  Settings
+                </h3>
+                <button 
+                  onClick={() => setShowSettings(false)}
+                  className="p-2 hover:bg-white/5 rounded-full transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 mb-2">
+                    Gemini API Key
+                  </label>
+                  <input 
+                    type="password"
+                    value={userApiKey}
+                    onChange={(e) => setUserApiKey(e.target.value)}
+                    placeholder="Paste your API key here..."
+                    className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-orange-500/50 transition-colors"
+                  />
+                  <p className="mt-2 text-[10px] text-gray-500 leading-relaxed">
+                    Your key is saved locally in your browser. Get one for free at 
+                    <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-orange-500 hover:underline ml-1">
+                      Google AI Studio
+                    </a>.
+                  </p>
+                </div>
+                
+                <button 
+                  onClick={() => saveApiKey(userApiKey)}
+                  className="w-full bg-orange-500 hover:bg-orange-600 text-black font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all active:scale-95"
+                >
+                  <Save className="w-4 h-4" />
+                  Save Settings
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-orange-500/10 blur-[120px] rounded-full" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-blue-500/10 blur-[120px] rounded-full" />
@@ -238,6 +311,13 @@ export default function App() {
         </div>
         
         <div className="flex items-center gap-4">
+          <button 
+            onClick={() => setShowSettings(true)}
+            className="p-3 rounded-full bg-white/5 hover:bg-white/10 transition-colors border border-white/10"
+            title="Settings"
+          >
+            <Settings className="w-5 h-5" />
+          </button>
           <button 
             onClick={() => setIsMuted(!isMuted)}
             className="p-3 rounded-full bg-white/5 hover:bg-white/10 transition-colors border border-white/10"
