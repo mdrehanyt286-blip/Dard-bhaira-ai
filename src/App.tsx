@@ -13,6 +13,7 @@ export default function App() {
   const [transcript, setTranscript] = useState("");
   const [aiTranscript, setAiTranscript] = useState("");
   const [volume, setVolume] = useState(0);
+  const [error, setError] = useState<string | null>(null);
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -76,6 +77,10 @@ export default function App() {
       processorRef.current.disconnect();
       processorRef.current = null;
     }
+    if (audioContextRef.current) {
+      audioContextRef.current.close();
+      audioContextRef.current = null;
+    }
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
       streamRef.current = null;
@@ -87,6 +92,7 @@ export default function App() {
   const startConversation = async () => {
     if (isConnectingRef.current) return;
     isConnectingRef.current = true;
+    setError(null);
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -97,7 +103,7 @@ export default function App() {
 
       const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
       
-      const session = await ai.live.connect({
+      const sessionPromise = ai.live.connect({
         model: MODEL_NAME,
         config: {
           responseModalities: [Modality.AUDIO],
@@ -113,13 +119,15 @@ export default function App() {
             isConnectingRef.current = false;
             setIsActive(true);
             setIsRecording(true);
+            setError(null);
+            
+            audioContext.resume();
             
             const source = audioContext.createMediaStreamSource(stream);
             const processor = audioContext.createScriptProcessor(4096, 1, 1);
             processorRef.current = processor;
 
             processor.onaudioprocess = (e) => {
-              if (!sessionRef.current) return;
               const inputData = e.inputBuffer.getChannelData(0);
               const pcmData = new Int16Array(inputData.length);
               let sum = 0;
@@ -131,13 +139,15 @@ export default function App() {
               setVolume(Math.sqrt(sum / inputData.length));
 
               const base64Data = btoa(String.fromCharCode(...new Uint8Array(pcmData.buffer)));
-              try {
-                session.sendRealtimeInput({
-                  audio: { data: base64Data, mimeType: 'audio/pcm;rate=16000' }
-                });
-              } catch (e) {
-                // Ignore errors if session is closing
-              }
+              sessionPromise.then((session) => {
+                try {
+                  session.sendRealtimeInput({
+                    audio: { data: base64Data, mimeType: 'audio/pcm;rate=16000' }
+                  });
+                } catch (e) {
+                  // Ignore errors if session is closing
+                }
+              });
             };
 
             source.connect(processor);
@@ -158,6 +168,9 @@ export default function App() {
                     playNextInQueue();
                   }
                 }
+                if (part.text) {
+                  setAiTranscript(prev => prev + " " + part.text);
+                }
               }
             }
 
@@ -169,9 +182,6 @@ export default function App() {
             if (message.serverContent?.inputTranscription?.text) {
               setTranscript(message.serverContent.inputTranscription.text);
             }
-            if (message.serverContent?.modelTurn?.parts?.[0]?.text) {
-              setAiTranscript(prev => prev + " " + message.serverContent?.modelTurn?.parts?.[0]?.text);
-            }
           },
           onclose: () => {
             isConnectingRef.current = false;
@@ -180,23 +190,23 @@ export default function App() {
           onerror: (err) => {
             isConnectingRef.current = false;
             if (err instanceof Error && (err.message.includes('aborted') || err.message.includes('AbortError'))) {
-              // Ignore abort errors
               return;
             }
             console.error(err);
+            setError(err instanceof Error ? err.message : String(err));
             stopConversation();
           }
         }
       });
 
-      sessionRef.current = session;
+      sessionRef.current = await sessionPromise;
     } catch (error) {
       isConnectingRef.current = false;
       if (error instanceof Error && (error.message.includes('aborted') || error.message.includes('AbortError'))) {
-        // Ignore abort errors
         return;
       }
       console.error("Failed to start conversation:", error);
+      setError(error instanceof Error ? error.message : String(error));
     }
   };
 
@@ -352,6 +362,12 @@ export default function App() {
               </div>
 
               <div className="h-64 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
+                {error && (
+                  <div className="p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+                    <p className="font-bold uppercase tracking-widest text-[10px] mb-1">Error</p>
+                    {error}
+                  </div>
+                )}
                 {isActive ? (
                   <>
                     <div className="space-y-1">
