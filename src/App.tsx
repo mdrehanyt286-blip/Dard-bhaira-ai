@@ -14,7 +14,16 @@ export default function App() {
   const [aiTranscript, setAiTranscript] = useState("");
   const [volume, setVolume] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [userApiKey, setUserApiKey] = useState<string>(localStorage.getItem('gemini_api_key') || "");
+  const [apiKeys, setApiKeys] = useState({
+    gemini: localStorage.getItem('gemini_api_key') || "",
+    deepseek: localStorage.getItem('deepseek_api_key') || "",
+    openai: localStorage.getItem('openai_api_key') || "",
+    anthropic: localStorage.getItem('anthropic_api_key') || "",
+    groq: localStorage.getItem('groq_api_key') || "",
+  });
+  const [provider, setProvider] = useState<'gemini' | 'deepseek' | 'openai' | 'anthropic' | 'groq'>(
+    (localStorage.getItem('ai_provider') as any) || 'gemini'
+  );
   const [showSettings, setShowSettings] = useState(false);
 
   const audioContextRef = useRef<AudioContext | null>(null);
@@ -103,9 +112,9 @@ export default function App() {
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
       audioContextRef.current = audioContext;
 
-      const apiKey = userApiKey || process.env.GEMINI_API_KEY;
+      const apiKey = apiKeys.gemini || process.env.GEMINI_API_KEY;
       if (!apiKey) {
-        throw new Error("API Key not found. Please set it in Settings.");
+        throw new Error("Gemini API Key not found. Please set it in Settings.");
       }
 
       const ai = new GoogleGenAI({ apiKey });
@@ -229,9 +238,15 @@ export default function App() {
     restart();
   }, [mode]);
 
-  const saveApiKey = (key: string) => {
-    setUserApiKey(key);
-    localStorage.setItem('gemini_api_key', key);
+  const saveApiKeys = (keys: typeof apiKeys, selectedProvider: typeof provider) => {
+    setApiKeys(keys);
+    setProvider(selectedProvider);
+    localStorage.setItem('gemini_api_key', keys.gemini);
+    localStorage.setItem('deepseek_api_key', keys.deepseek);
+    localStorage.setItem('openai_api_key', keys.openai);
+    localStorage.setItem('anthropic_api_key', keys.anthropic);
+    localStorage.setItem('groq_api_key', keys.groq);
+    localStorage.setItem('ai_provider', selectedProvider);
     setShowSettings(false);
   };
 
@@ -265,34 +280,107 @@ export default function App() {
                 </button>
               </div>
               
-              <div className="space-y-4">
+              <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
                 <div>
-                  <label className="block text-xs font-bold uppercase tracking-widest text-gray-500 mb-2">
-                    Gemini API Key
+                  <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-2">
+                    Select AI Provider
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {['gemini', 'deepseek', 'openai', 'anthropic', 'groq'].map((p) => (
+                      <button
+                        key={p}
+                        onClick={() => setProvider(p as any)}
+                        className={`px-3 py-2 rounded-xl text-xs font-bold capitalize transition-all border ${
+                          provider === p 
+                            ? 'bg-orange-500 text-black border-orange-500' 
+                            : 'bg-black text-gray-400 border-white/10 hover:border-white/20'
+                        }`}
+                      >
+                        {p}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="h-px bg-white/5 my-2" />
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">
+                    Gemini API Key (Live Voice)
                   </label>
                   <input 
                     type="password"
-                    value={userApiKey}
-                    onChange={(e) => setUserApiKey(e.target.value)}
-                    placeholder="Paste your API key here..."
-                    className="w-full bg-black border border-white/10 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-orange-500/50 transition-colors"
+                    value={apiKeys.gemini}
+                    onChange={(e) => setApiKeys({ ...apiKeys, gemini: e.target.value })}
+                    placeholder="Gemini API Key..."
+                    className="w-full bg-black border border-white/10 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-orange-500/50 transition-colors"
                   />
-                  <p className="mt-2 text-[10px] text-gray-500 leading-relaxed">
-                    Your key is saved locally in your browser. Get one for free at 
-                    <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-orange-500 hover:underline ml-1">
-                      Google AI Studio
-                    </a>.
-                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">
+                    DeepSeek API Key
+                  </label>
+                  <input 
+                    type="password"
+                    value={apiKeys.deepseek}
+                    onChange={(e) => setApiKeys({ ...apiKeys, deepseek: e.target.value })}
+                    placeholder="DeepSeek API Key..."
+                    className="w-full bg-black border border-white/10 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-orange-500/50 transition-colors"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">
+                    OpenAI API Key
+                  </label>
+                  <input 
+                    type="password"
+                    value={apiKeys.openai}
+                    onChange={(e) => setApiKeys({ ...apiKeys, openai: e.target.value })}
+                    placeholder="OpenAI API Key..."
+                    className="w-full bg-black border border-white/10 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-orange-500/50 transition-colors"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">
+                    Anthropic API Key
+                  </label>
+                  <input 
+                    type="password"
+                    value={apiKeys.anthropic}
+                    onChange={(e) => setApiKeys({ ...apiKeys, anthropic: e.target.value })}
+                    placeholder="Anthropic API Key..."
+                    className="w-full bg-black border border-white/10 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-orange-500/50 transition-colors"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold uppercase tracking-widest text-gray-500 mb-1">
+                    Groq API Key
+                  </label>
+                  <input 
+                    type="password"
+                    value={apiKeys.groq}
+                    onChange={(e) => setApiKeys({ ...apiKeys, groq: e.target.value })}
+                    placeholder="Groq API Key..."
+                    className="w-full bg-black border border-white/10 rounded-xl px-4 py-2 text-sm focus:outline-none focus:border-orange-500/50 transition-colors"
+                  />
                 </div>
                 
-                <button 
-                  onClick={() => saveApiKey(userApiKey)}
-                  className="w-full bg-orange-500 hover:bg-orange-600 text-black font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all active:scale-95"
-                >
-                  <Save className="w-4 h-4" />
-                  Save Settings
-                </button>
+                <p className="text-[10px] text-gray-500 leading-relaxed">
+                  Keys are saved locally in your browser. Currently, Gemini is used for the Live Voice experience.
+                </p>
               </div>
+              
+              <button 
+                onClick={() => saveApiKeys(apiKeys, provider)}
+                className="w-full bg-orange-500 hover:bg-orange-600 text-black font-bold py-3 rounded-xl flex items-center justify-center gap-2 transition-all active:scale-95 mt-4"
+              >
+                <Save className="w-4 h-4" />
+                Save All Keys
+              </button>
             </motion.div>
           </motion.div>
         )}
